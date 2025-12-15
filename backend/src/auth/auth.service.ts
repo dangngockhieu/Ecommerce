@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { JwtService } from '@nestjs/jwt';
 import * as argon from 'argon2';
 import { v4 as uuid4 } from 'uuid';
-import dayjs from 'dayjs';
+import * as dayjs from 'dayjs';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../help/mail/mail.service';
 import { UserService } from '../modules/user/user.service';

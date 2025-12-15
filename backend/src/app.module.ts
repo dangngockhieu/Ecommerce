@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './modules/user/user.module';
+import { ProductModule } from './modules/product/product.module';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './help/database/database.module';
 import { MailModule } from './help/mail/mail.module';
@@ -26,6 +27,7 @@ import { join } from 'path';
     DatabaseModule,
     AuthModule, 
     UserModule,
+    ProductModule,
     MailModule
   ],
   providers: [

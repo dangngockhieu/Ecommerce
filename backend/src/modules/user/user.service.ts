@@ -15,7 +15,7 @@ export class UserService {
         @Inject('DATABASE_POOL') private pool: Pool
     ) {}
 
-    // ==================== Check email exists ==================== 
+    // Check email exists 
     async isEmailExist(email: string): Promise<boolean> {
         const query = 'SELECT id FROM "users" WHERE email = $1';
         const existingUser = await this.pool.query(query, [email]);
@@ -26,14 +26,14 @@ export class UserService {
         return false;
     }
 
-    // ==================== Find user by email ==================== 
+    // Find user by email 
     async findUserByEmail(email: string): Promise<any> {
         const query = 'SELECT * FROM "users" WHERE email = $1';
         const result = await this.pool.query(query, [email]);
         return result.rows[0];
     }
 
-    // ==================== Get User With Paginateion ====================
+    // Get User With Paginateion 
     async getUserWithPaginate(page: number, limit: number, search: string) : Promise<{users: any[], total: number}> {
         const offset = (page - 1) * limit;
         let query1 = `
@@ -69,7 +69,7 @@ export class UserService {
         return {users: result1.rows, total: parseInt(result2.rows[0].total, 10)};
     }
 
-    // ==================== CREATE USER (ADMIN) ====================
+    // CREATE USER (ADMIN)
     async postUserForAdmin (email: string, name: string, password: string, role: string): Promise<void> {
         const existingUser = await this.isEmailExist(email);
         if (existingUser) throw new ConflictException('Email đã được đăng ký!');
@@ -81,7 +81,7 @@ export class UserService {
         await this.pool.query(query, [email, hashPassword, name, role]);
     };
 
-    // ==================== CHANGE PASSWORD ====================
+    // CHANGE PASSWORD 
     async changePassword(email: string, oldPassword: string, newPassword: string) : Promise<void> {
         if (!email) {
             throw new UnauthorizedException('Không xác định được user. Thiếu token hoặc token không hợp lệ');
@@ -99,7 +99,7 @@ export class UserService {
         await this.pool.query(query, [hashNewPassword, email]);
     }
 
-    // ==================== CHANGE ROLE USER ====================
+    // CHANGE ROLE USER
     async changeUserRole(userID: number, newRole: string) : Promise<void> {
         const query = `
             UPDATE "users"
@@ -109,14 +109,14 @@ export class UserService {
         await this.pool.query(query, [newRole, userID]);
     }
 
-    // ==================== Count Users ====================
+    // Count Users 
     async countUsers(): Promise<number> {
         const query = 'SELECT COUNT(*) AS total FROM "users" WHERE "isVerified" = true';
         const result = await this.pool.query(query);
         return parseInt(result.rows[0].total, 10);
     }
 
-    // ==================== Count This Month Users ====================
+    // Count This Month Users 
     async countThisMonthUsers(): Promise<number> {
         const vnNow = dayjs().tz("Asia/Ho_Chi_Minh").toDate();
         const startOfMonth = dayjs(vnNow).startOf('month').toDate();

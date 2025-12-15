@@ -1,0 +1,214 @@
+import { 
+  Body, Controller, Delete, Get, Param, Post, Put, Query, 
+  Req, Res, UploadedFile, UploadedFiles, UseInterceptors,  
+  BadRequestException
+} from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { ProductService } from './product.service';
+import { Public } from '../../auth/decorater/customize';
+import { Roles } from '../../auth/decorater/roles';
+import { ProductFilters} from './dto';
+import { Throttle, SkipThrottle} from '@nestjs/throttler';
+import { Request as ExpressRequest } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Cấu hình Multer lưu ảnh
+const multerConfig = {
+  storage: diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join('public', 'products');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
+      cb(null, uniqueSuffix);
+    },
+  }),
+  fileFilter: (req: ExpressRequest, file: Express.Multer.File, cb: (error: Error | null, acceptFile: boolean) => void) => {
+    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+        return cb(new BadRequestException('Chỉ chấp nhận file ảnh!'), false);
+    }
+    cb(null, true);
+  }
+};
+
+
+@Controller('product')
+export class ProductController {
+  constructor(private readonly productService: ProductService) {}
+  // Lấy sản phẩm với phân trang và lọc
+  @Get('products-paginate')
+  @Roles('ADMIN')
+  async getProductsWithPaginate(@Query() query: any) {
+    const { page, limit, keyword, category, factory } = query;
+
+    const data= this.productService.getProductsWithPaginate(page, limit, keyword, category, factory);
+    return {
+      success: true,
+      message: 'Lấy danh sách sản phẩm thành công',
+      data:{
+        data
+      }
+    }
+  }
+
+  // Lấy sản phẩm theo bộ lọc
+  @Post('filter-products')
+  @Public()
+  async getFilteredProducts(@Req() req: ExpressRequest) {
+    const category = req.body.category;
+    const filters = req.body.filters as ProductFilters ;
+    const {count, products} = await this.productService.getFilterProducts(category, filters);
+    return { 
+      success: true,
+      message: 'Lấy danh sách sản phẩm thành công',
+      data:{
+        count,
+        products
+      }
+      
+     };
+  }
+
+  // Lấy danh sách laptop bán chạy
+  @Get('top-selling-laptop')
+  @Public()
+  async getTopSellingLaptop() {
+    const data = await this.productService.getTopSellingLaptop();
+    return { 
+      success: true,
+      message: 'Lấy danh sách sản phẩm thành công',
+      data: data
+     };
+  }
+
+  // Lấy danh sách điện thoại bán chạy
+  @Get('top-selling-phone')
+  @Public()
+  async getTopSellingPhone() {
+    const data = await this.productService.getTopSellingPhone();
+    return { 
+      success: true,
+      message: 'Lấy danh sách sản phẩm thành công',
+      data: data
+     };
+  }
+
+  // Lấy sản phẩm bán chạy nhất
+  @Get('top-selling-product')
+  @SkipThrottle()
+  @Roles('ADMIN')
+  async getTopSellingProduct() {
+    const data = await this.productService.getTopSellingProduct();
+    return { 
+      success: true,
+      data 
+    };
+  }
+
+  // Lấy tất cả sản phẩm
+  @Get('products')
+  async getAllProducts() {
+    const products = await this.productService.getAllProducts();
+    return { 
+      success: true,
+      message: 'Lấy danh sách sản phẩm thành công',
+      data: products
+     };
+  }
+
+  // Lấy chi tiết sản phẩm theo ID
+  @Get('products/:id')
+  @Public()
+  async getProductById(@Param('id') id: string) {
+    const data = await this.productService.getProductById(Number(id));
+    if (!data.product) throw new BadRequestException('Not found');
+    return { 
+      success: true,
+      message: 'Lấy chi tiết sản phẩm thành công',
+      data : data
+    };
+  }
+
+  // Tạo sản phẩm mới
+  @Post('product')
+  @Roles('ADMIN') 
+  @UseInterceptors(FilesInterceptor('images', 5, multerConfig))
+  async createProduct(@Body() body: any, @UploadedFiles() files: Array<Express.Multer.File>) {
+    const product = await this.productService.createProduct(body, files);
+    return { 
+      success: true,
+      message: 'Tạo sản phẩm thành công', 
+      data: product 
+    };
+  }
+
+  // Import sản phẩm từ file Excel
+  @Post('import-products')
+  @Roles('ADMIN')
+  @UseInterceptors(FileInterceptor('file'))
+  async importProductsFromExcel(@UploadedFile() file: Express.Multer.File) {
+    const importedCount = await this.productService.importProducts(file.path);
+    return { 
+      success: true,
+      message: `Import thành công ${importedCount} sản phẩm` 
+    };
+  }
+
+  // Cập nhật sản phẩm
+  @Put('products/:id')
+  @Roles('ADMIN')
+  async updateProduct(@Param('id') id: string, @Body() body: any) {
+    const product = await this.productService.updateProduct(Number(id), body);
+    return { 
+      success: true,
+      message: 'Cập nhật thành công', 
+      data: product 
+    };
+  }
+
+  // Xóa sản phẩm
+  @Delete('products/:id')
+  @Roles('ADMIN')
+  async deleteProduct(@Param('id') id: string) {
+    await this.productService.deleteProduct(Number(id));
+    return { 
+      success: true,      
+      message: 'Xóa sản phẩm thành công' };
+  }
+
+  // Tạo đánh giá cho sản phẩm
+  @Post('reviews/:productID')
+  async createReview(
+    @Param('productID') productID: string,
+    @Body() body: any,
+    @Req() req: any
+  ) {
+    const userID = req.user.id;
+    const { rating, comment, orderItemID } = body;
+    
+    const review = await this.productService.createReview(
+      Number(productID), userID, Number(rating), comment, Number(orderItemID)
+    );
+    return { 
+      success: true,
+      message: 'Đánh giá thành công', 
+      data: review 
+    };
+  }
+
+  // Tính tổng số sản phẩm trong kho
+  @Get('count-products')
+  @Roles('ADMIN')
+  async countProducts() {
+    const count = await this.productService.countProducts();
+    return {
+      success: true,
+      message: 'Lấy tổng số sản phẩm thành công',
+      data: count
+    };
+  }
+}
