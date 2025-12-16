@@ -1,6 +1,7 @@
 backend/node_modules
 backend/dist
 backend/.env
+backend/public/products
 backend/docker-compose.yml
 
 frontend/node_modules

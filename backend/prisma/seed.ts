@@ -249,16 +249,16 @@ async function main() {
           nowVN, 
           nowVN  
         ]);
-        const orderId = resOrder.rows[0].id;
+        const orderID = resOrder.rows[0].id;
 
         // Insert Order Item
         await client.query(qInsertOrderItem, [
-          orderId, product.id, 1, price, true
+          orderID, product.id, 1, price, true
         ]);
 
         // Insert Payment
         await client.query(qInsertPayment, [
-          orderId, price
+          orderID, price
         ]);
 
         // Insert Review

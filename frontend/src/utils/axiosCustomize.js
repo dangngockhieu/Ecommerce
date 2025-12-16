@@ -1,0 +1,115 @@
+import axios from 'axios';
+import NProgress from 'nprogress';
+import { store } from '../redux/store';
+import { updateAccessToken, doLogout } from '../redux/action/userAction';
+
+// ================== CẤU HÌNH NProgress ==================
+NProgress.configure({
+  showSpinner: false,
+  trickleSpeed: 100,
+  minimum: 0.1,
+});
+
+// ================== KHỞI TẠO INSTANCE ==================
+const instance = axios.create({
+  baseURL: import.meta.env.VITE_BACKEND_URL
+});
+
+// ================== QUẢN LÝ REFRESH TOKEN ==================
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const onRefreshed = (newAccessToken) => {
+  refreshSubscribers.forEach((callback) => callback(newAccessToken));
+  refreshSubscribers = [];
+};
+
+const addRefreshSubscriber = (callback) => {
+  refreshSubscribers.push(callback);
+};
+
+// ================== REQUEST INTERCEPTOR ==================
+instance.interceptors.request.use(
+  (config) => {
+    const access_token = store?.getState()?.user?.account?.access_token;
+    if (access_token) {
+      config.headers['Authorization'] = 'Bearer ' + access_token;
+    }
+
+    NProgress.start();
+    return config;
+  },
+  (error) => {
+    NProgress.done();
+    return Promise.reject(error);
+  }
+);
+
+// ================== RESPONSE INTERCEPTOR ==================
+instance.interceptors.response.use(
+  (response) => {
+    NProgress.done();
+    return response?.data ?? response;
+  },
+
+  async (error) => {
+    NProgress.done();
+
+    const originalRequest = error.config;
+
+    if (!error.response) {
+      return Promise.reject(error);
+    }
+
+    // ================== XỬ LÝ LỖI 401 (TOKEN HẾT HẠN) ==================
+    if (
+      error?.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes('auth/refresh-token')
+    ) {
+      originalRequest._retry = true;
+
+      if (isRefreshing) {
+        // Nếu đang refresh, các request khác sẽ chờ
+        return new Promise((resolve) => {
+          addRefreshSubscriber((newAccessToken) => {
+            originalRequest.headers['Authorization'] =
+              'Bearer ' + newAccessToken;
+            resolve(instance(originalRequest));
+          });
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        // Gọi API refresh token (refresh_token nằm trong cookie)
+        const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/auth/refresh-token`,
+          {}, { withCredentials: true }
+        );
+        if (res?.data?.success && res?.data?.data?.access_token) {
+          const newAccess = res.data.data.access_token;
+
+          store.dispatch(updateAccessToken(newAccess));
+
+          onRefreshed(newAccess);
+          originalRequest._retry = true;
+          originalRequest.headers['Authorization'] = 'Bearer ' + newAccess;
+          return instance(originalRequest);
+        } else {
+          throw new Error('Invalid refresh response');
+        }
+      } catch (err) {
+        store.dispatch(doLogout());
+        return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    // ================== TRẢ VỀ LỖI MẶC ĐỊNH ==================
+    return error?.response?.data || Promise.reject(error);
+  }
+);
+
+export default instance;

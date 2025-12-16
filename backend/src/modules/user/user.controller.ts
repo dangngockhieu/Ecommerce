@@ -61,7 +61,7 @@ export class UserController {
     @Patch('user-role/:id')
     @Roles('ADMIN')
     async changeUserRole(@Req() req: Request) {
-        const userID = Number(req.params.id);
+        const userID = +req.params.id;
         const newRole = req.body.role;
         await this.userService.changeUserRole(userID, newRole);
         return {

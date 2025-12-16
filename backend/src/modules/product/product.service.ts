@@ -78,9 +78,7 @@ export class ProductService {
 
             return {
                 products: resProducts.rows,
-                total: total,
-                page: pageNum,
-                totalPages: Math.ceil(total / limitNum)
+                total: total
             };
         } catch (error) {
             console.error(error);
@@ -146,12 +144,12 @@ export class ProductService {
 
         const query = `
             SELECT p.id, p.name, SUM(oi.quantity) AS sold
-            FROM order_items oi
-            INNER JOIN orders o ON oi.orderID = o.id
-            INNER JOIN products p ON oi.productID = p.id
+            FROM "order_items" oi
+            INNER JOIN "orders" o ON oi."orderID" = o.id
+            INNER JOIN "products" p ON oi."productID" = p.id
             WHERE o.status = 'COMPLETED'
-            AND o.orderDate >= $1 
-            AND o.orderDate <= $2
+            AND o."orderDate" >= $1 
+            AND o."orderDate" <= $2
             GROUP BY p.id, p.name
             ORDER BY sold DESC
             LIMIT 5;
@@ -304,16 +302,16 @@ export class ProductService {
             SELECT 
                 p.*,
             (
-                SELECT JSON_ARRAYAGG(pi.url)
+                SELECT pi.url
                 FROM product_images pi 
-                WHERE pi.productId = p.id
+                WHERE pi."productID" = p.id
                 LIMIT 1
             ) AS image,
             (
                 SELECT JSON_ARRAYAGG(f.name)
                 FROM features f 
-                JOIN product_features pf ON f.id = pf.featureID
-                WHERE pf.productID = p.id
+                JOIN product_features pf ON f.id = pf."featureID"
+                WHERE pf."productID" = p.id
             ) AS features
             FROM products p
             GROUP BY p.id
@@ -537,7 +535,7 @@ export class ProductService {
         ]);
     }
 
-    return { total: rows.length };
+    return rows.length;
 }
 
     // Thêm nhiều ảnh (khi edit muốn thêm ảnh mới) 

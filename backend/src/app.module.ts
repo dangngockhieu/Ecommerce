@@ -11,6 +11,10 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { OrderModule } from './modules/order/order.module';
+import { CartModule } from './modules/cart/cart.module';
+import { ChatBotModule } from './modules/chatbot/chatbot.module';
+import { VnpayModule } from './modules/vnpay/vnpay.module';
 
 @Module({
   imports: [
@@ -28,7 +32,11 @@ import { join } from 'path';
     AuthModule, 
     UserModule,
     ProductModule,
-    MailModule
+    OrderModule,
+    CartModule,
+    MailModule,
+    ChatBotModule,
+    VnpayModule
   ],
   providers: [
     {

@@ -75,7 +75,7 @@ export class UserService {
         if (existingUser) throw new ConflictException('Email đã được đăng ký!');
         const hashPassword = await argon.hash(password);
         const query = `
-            INSERT INTRO "users" (email, password, name, role, "isVerified")
+            INSERT INTO "users" (email, password, name, role, "isVerified")
             VALUES ($1, $2, $3, $4, true)
         `;
         await this.pool.query(query, [email, hashPassword, name, role]);

@@ -35,6 +35,27 @@ const multerConfig = {
   }
 };
 
+// Cấu hình Multer cho Excel
+const multerExcelConfig = {
+  storage: diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join('public', 'temp');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
+      cb(null, uniqueSuffix);
+    },
+  }),
+  fileFilter: (req: ExpressRequest, file: Express.Multer.File, cb: (error: Error | null, acceptFile: boolean) => void) => {
+    if (!file.originalname.match(/\.(xlsx|xls)$/)) {
+        return cb(new BadRequestException('Chỉ chấp nhận file Excel!'), false);
+    }
+    cb(null, true);
+  }
+};
+
 
 @Controller('product')
 export class ProductController {
@@ -45,12 +66,13 @@ export class ProductController {
   async getProductsWithPaginate(@Query() query: any) {
     const { page, limit, keyword, category, factory } = query;
 
-    const data= this.productService.getProductsWithPaginate(page, limit, keyword, category, factory);
+    const {products, total} = await this.productService.getProductsWithPaginate(page, limit, keyword, category, factory);
     return {
       success: true,
       message: 'Lấy danh sách sản phẩm thành công',
-      data:{
-        data
+      data: {
+        products: products,
+        total: total
       }
     }
   }
@@ -105,7 +127,7 @@ export class ProductController {
     const data = await this.productService.getTopSellingProduct();
     return { 
       success: true,
-      data 
+      data : data
     };
   }
 
@@ -142,20 +164,40 @@ export class ProductController {
     return { 
       success: true,
       message: 'Tạo sản phẩm thành công', 
-      data: product 
+      data: {
+        product
+      } 
     };
   }
 
   // Import sản phẩm từ file Excel
-  @Post('import-products')
+  @Post('upload-excel')
   @Roles('ADMIN')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('excel', multerExcelConfig))
   async importProductsFromExcel(@UploadedFile() file: Express.Multer.File) {
-    const importedCount = await this.productService.importProducts(file.path);
-    return { 
-      success: true,
-      message: `Import thành công ${importedCount} sản phẩm` 
-    };
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file Excel!');
+    }
+    
+    try {
+      const importedCount = await this.productService.importProducts(file.path);
+      
+      // Xóa file Excel sau khi import thành công
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      
+      return { 
+        success: true,
+        message: `Import thành công ${importedCount} sản phẩm` 
+      };
+    } catch (error) {
+      // Xóa file ngay cả khi có lỗi
+      if (file.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      throw error;
+    }
   }
 
   // Cập nhật sản phẩm
@@ -166,7 +208,9 @@ export class ProductController {
     return { 
       success: true,
       message: 'Cập nhật thành công', 
-      data: product 
+      data: {
+        product
+      }  
     };
   }
 
@@ -178,6 +222,56 @@ export class ProductController {
     return { 
       success: true,      
       message: 'Xóa sản phẩm thành công' };
+  }
+
+  // Thêm features cho sản phẩm
+  @Post('product-features/:productID')
+  @Roles('ADMIN')
+  async addProductFeatures(@Param('productID') productID: string, @Body() body: any) {
+    const { featureIDs } = body;
+    await this.productService.addProductFeatures(Number(productID), featureIDs);
+    return {
+      success: true,
+      message: 'Thêm đặc điểm sản phẩm thành công'
+    };
+  }
+
+  // Xóa feature của sản phẩm
+  @Delete('product-feature')
+  @Roles('ADMIN')
+  async deleteProductFeature(@Query() query: any) {
+    const { productID, featureID } = query;
+    await this.productService.deleteProductFeature(Number(productID), Number(featureID));
+    return {
+      success: true,
+      message: 'Xóa đặc điểm sản phẩm thành công'
+    };
+  }
+
+  // Thêm nhiều ảnh cho sản phẩm
+  @Post('product-images/:productID')
+  @Roles('ADMIN')
+  @UseInterceptors(FilesInterceptor('images', 10, multerConfig))
+  async addProductImages(
+    @Param('productID') productID: string,
+    @UploadedFiles() files: Array<Express.Multer.File>
+  ) {
+    await this.productService.addProductImages(Number(productID), files);
+    return {
+      success: true,
+      message: 'Thêm ảnh sản phẩm thành công'
+    };
+  }
+
+  // Xóa ảnh sản phẩm
+  @Delete('product-image/:imageId')
+  @Roles('ADMIN')
+  async deleteProductImage(@Param('imageId') imageId: string) {
+    await this.productService.deleteProductImage(Number(imageId));
+    return {
+      success: true,
+      message: 'Xóa ảnh sản phẩm thành công'
+    };
   }
 
   // Tạo đánh giá cho sản phẩm
@@ -196,7 +290,9 @@ export class ProductController {
     return { 
       success: true,
       message: 'Đánh giá thành công', 
-      data: review 
+      data: {
+        review
+      } 
     };
   }
 
@@ -208,7 +304,9 @@ export class ProductController {
     return {
       success: true,
       message: 'Lấy tổng số sản phẩm thành công',
-      data: count
+      data: {
+        count
+      }
     };
   }
 }
